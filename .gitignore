@@ -1,0 +1,21 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Trained model bundles — artifacts, not source. Ship via a registry or object
+# store, not git.
+models/
+data/
+
+node_modules/
+.next/
+dist/
+
+.DS_Store
+.idea/
+.vscode/
