@@ -15,7 +15,7 @@ from enum import Enum
 from typing import Any
 
 from ai.forecasting.baseline import Tier
-from ai.forecasting.predict import LotScore
+from ai.forecasting.types import LotScore
 
 # A lot must not re-alert at the same tier inside this window.
 COOLDOWN = timedelta(days=7)

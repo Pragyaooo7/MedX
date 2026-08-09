@@ -22,35 +22,14 @@ from .baseline import BaselineEstimate, Tier, rules_baseline, rules_discount
 from .features import (
     DEMAND_FEATURES, SELLOUT_FEATURES, LotContext, lot_feature_row,
 )
+from .types import DEFAULT_TARGET_SELLOUT, LotScore
 
 log = logging.getLogger(__name__)
-
-# The sellout probability we aim for when recommending a price. Below 1.0 on
-# purpose: pricing every lot to a near-certain clear means giving away margin on
-# stock that would have sold anyway.
-DEFAULT_TARGET_SELLOUT = 0.85
 
 # Discount grid searched by recommend_price, as a fraction off MRP. Coarse by
 # design — sellers do not act on a 3% difference, and a fine grid implies a
 # precision the model does not have.
 _DISCOUNT_GRID = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.70]
-
-
-@dataclass(frozen=True)
-class LotScore:
-    listing_id: str
-    days_to_expiry: int
-    p_sellout: float
-    expected_units_p10: float
-    expected_units_p50: float
-    expected_units_p90: float
-    recommended_price: float | None
-    tier: Tier
-    model_version: str
-
-    @property
-    def clears_comfortably(self) -> bool:
-        return self.p_sellout >= DEFAULT_TARGET_SELLOUT
 
 
 class Forecaster:

@@ -84,6 +84,33 @@ Validation is a **forward-chaining time split**, never random — a random split
 lets the model see next week while predicting this week, producing a great
 offline number and a useless model.
 
+## Tests
+
+```bash
+pip install -r api/requirements.txt pytest
+pytest                 # 86 tests
+```
+
+`test_train_integration.py` trains real LightGBM models on synthetic data with a
+known price signal, then saves, reloads, and scores through the production path —
+so the pipeline is proven to run, not merely to type-check. Representative output:
+
+| model | pinball | coverage | target |
+|---|---|---|---|
+| P10 | 0.208 | 0.179 | 0.10 |
+| P50 | 0.611 | 0.607 | 0.50 |
+| P90 | 0.332 | **0.929** | 0.90 |
+
+Coverage is the metric that matters for a quantile model: ~90% of realized demand
+should fall below the P90 prediction. A model can post excellent average error and
+still be systematically overconfident.
+
+The suite also asserts the signal the pricing engine depends on — that the model
+recovers a ~3x demand lift between 95% and 45% of MRP, with `price_ratio` the
+highest-gain feature. If price stops being predictive, inverting the model for a
+recommendation becomes meaningless, so that relationship is a test, not an
+assumption.
+
 ## Design decisions worth knowing
 
 **Listings are keyed per batch, not per product.** Expiry is intrinsic to a lot,
