@@ -64,40 +64,77 @@ def nightly_pipeline():
 
 # ---------------------------------------------------------------- demand rollup
 
-# The LEFT JOIN and COALESCE are the whole point: this must emit a row for every
-# (drug, region, day) a listing was active, including days with no sales. A model
-# trained only on days that had sales learns demand is always positive and will
-# never recommend a discount.
+# Must emit a row for every (drug, region, day) a listing was active, including
+# days with no sales. A model trained only on days that had sales learns demand is
+# always positive and will never recommend a discount.
+#
+# Built per (listing, day) first and only then aggregated, so that no join can
+# multiply rows. Each day is attributed only that day's non-cancelled sales, at the
+# price the lot actually held that day (from price_history), with the stock that
+# was left that day. Using today's price and stock for past days would teach the
+# model a price signal that never happened.
 _REBUILD_SQL = text(
     """
+    WITH days AS (
+        SELECT d::date AS day
+        FROM generate_series(
+            CURRENT_DATE - make_interval(days => :lookback_days),
+            CURRENT_DATE - 1,
+            '1 day'
+        ) AS d
+    ),
+    sales AS (
+        SELECT oi.listing_id, o.placed_at::date AS day, SUM(oi.quantity) AS units
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE o.status NOT IN ('cancelled', 'refunded')
+        GROUP BY oi.listing_id, o.placed_at::date
+    ),
+    lot_days AS (
+        SELECT
+            l.drug_id,
+            s.region_code,
+            d.day,
+            l.mrp,
+            COALESCE(sa.units, 0) AS units,
+            COALESCE(ph.price, l.current_price) AS price,
+            GREATEST(l.quantity_total - COALESCE(before.units, 0), 0) AS available
+        FROM days d
+        JOIN listings l
+          ON l.listed_at::date <= d.day
+         AND l.expiry_date > d.day
+         AND (l.status = 'active' OR l.updated_at::date >= d.day)
+        JOIN sellers s ON s.id = l.seller_id
+        LEFT JOIN sales sa ON sa.listing_id = l.id AND sa.day = d.day
+        LEFT JOIN LATERAL (
+            SELECT price FROM price_history
+            WHERE listing_id = l.id AND effective_from::date <= d.day
+            ORDER BY effective_from DESC
+            LIMIT 1
+        ) ph ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT SUM(units) AS units FROM sales
+            WHERE listing_id = l.id AND day < d.day
+        ) before ON TRUE
+    )
     INSERT INTO demand_daily (
         drug_id, region_code, day, units_sold,
         avg_price_ratio, active_listings, total_available
     )
     SELECT
-        l.drug_id,
-        s.region_code,
-        d.day::date,
-        COALESCE(SUM(oi.quantity), 0)                              AS units_sold,
-        AVG(l.current_price / NULLIF(l.mrp, 0))::numeric(5,4)      AS avg_price_ratio,
-        COUNT(DISTINCT l.id)                                       AS active_listings,
-        COALESCE(SUM(DISTINCT l.quantity_available), 0)            AS total_available
-    FROM generate_series(
-            (CURRENT_DATE - make_interval(days => :lookback_days)),
-            CURRENT_DATE - 1,
-            '1 day'
-         ) AS d(day)
-    JOIN listings l
-      ON l.listed_at::date <= d.day::date
-     AND (l.status = 'active' OR l.updated_at::date >= d.day::date)
-    JOIN sellers s ON s.id = l.seller_id
-    LEFT JOIN order_items oi
-      ON oi.listing_id = l.id
-    LEFT JOIN orders o
-      ON o.id = oi.order_id
-     AND o.placed_at::date = d.day::date
-     AND o.status NOT IN ('cancelled', 'refunded')
-    GROUP BY l.drug_id, s.region_code, d.day::date
+        drug_id,
+        region_code,
+        day,
+        SUM(units),
+        -- Weighted by units sold; a plain average on days with no sales.
+        (CASE WHEN SUM(units) > 0
+              THEN SUM(units * price / mrp) / SUM(units)
+              ELSE AVG(price / mrp)
+         END)::numeric(5,4),
+        COUNT(*),
+        SUM(available)
+    FROM lot_days
+    GROUP BY drug_id, region_code, day
     ON CONFLICT (drug_id, region_code, day) DO UPDATE SET
         units_sold      = EXCLUDED.units_sold,
         avg_price_ratio = EXCLUDED.avg_price_ratio,

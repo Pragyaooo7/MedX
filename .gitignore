@@ -1,4 +1,5 @@
 .env
+.env.local
 *.pyc
 __pycache__/
 .venv/
@@ -19,3 +20,4 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+*.tsbuildinfo

@@ -14,10 +14,33 @@ from sqlalchemy import (
     CheckConstraint, Date, DateTime, ForeignKey, Integer, Numeric, String,
     Text, UniqueConstraint, func,
 )
-from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ENUM, INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+
+
+def _enum(name: str, *values: str) -> ENUM:
+    """A column of one of the schema's Postgres enum types.
+
+    Mapping these as String makes SQLAlchemy bind VARCHAR, which Postgres refuses
+    to put in an enum column. The types are created by db/schema.sql, never here.
+    """
+    return ENUM(*values, name=name, create_type=False)
+
+
+USER_ROLE = _enum("user_role", "buyer", "seller", "admin")
+SELLER_STATUS = _enum("seller_status", "pending", "verified", "suspended")
+DRUG_FORM = _enum(
+    "drug_form", "tablet", "capsule", "syrup", "injection", "ointment",
+    "drops", "inhaler", "powder", "other",
+)
+DRUG_SCHEDULE = _enum("drug_schedule", "OTC", "H", "H1", "X")
+LISTING_STATUS = _enum(
+    "listing_status", "active", "sold_out", "expired", "withdrawn", "recalled"
+)
+FORECAST_TIER = _enum("forecast_tier", "drug", "atc_class", "form_prior", "rules_baseline")
+ALERT_TIER = _enum("alert_tier", "watch", "warning", "critical")
 
 
 class User(Base):
@@ -29,7 +52,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     phone: Mapped[str | None] = mapped_column(String, unique=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False, default="buyer")
+    role: Mapped[str] = mapped_column(USER_ROLE, nullable=False, default="buyer")
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     email_verified: Mapped[bool] = mapped_column(default=False)
     is_active: Mapped[bool] = mapped_column(default=True)
@@ -55,7 +78,7 @@ class Seller(Base):
     license_number: Mapped[str] = mapped_column(Text, nullable=False)
     license_expiry: Mapped[date] = mapped_column(Date, nullable=False)
     gstin: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(SELLER_STATUS, nullable=False, default="pending")
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     address_line: Mapped[str] = mapped_column(Text, nullable=False)
     city: Mapped[str] = mapped_column(Text, nullable=False)
@@ -85,10 +108,10 @@ class Drug(Base):
     # substitute search depends on this.
     composition_key: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     strength: Mapped[str] = mapped_column(Text, nullable=False)
-    form: Mapped[str] = mapped_column(String, nullable=False)
+    form: Mapped[str] = mapped_column(DRUG_FORM, nullable=False)
     manufacturer: Mapped[str] = mapped_column(Text, nullable=False)
     mrp: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    schedule_class: Mapped[str] = mapped_column(String, nullable=False, default="OTC")
+    schedule_class: Mapped[str] = mapped_column(DRUG_SCHEDULE, nullable=False, default="OTC")
     atc_code: Mapped[str | None] = mapped_column(Text, index=True)
     pack_size: Mapped[int] = mapped_column(Integer, default=1)
 
@@ -129,7 +152,7 @@ class Listing(Base):
     current_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     # Automated repricing may never go below this.
     price_floor: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    status: Mapped[str] = mapped_column(LISTING_STATUS, nullable=False, default="active")
     listed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -165,7 +188,7 @@ class LotRiskScore(Base):
     expected_units_p50: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     expected_units_p90: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     recommended_price: Mapped[float | None] = mapped_column(Numeric(10, 2))
-    tier: Mapped[str] = mapped_column(String, nullable=False)
+    tier: Mapped[str] = mapped_column(FORECAST_TIER, nullable=False)
     model_version: Mapped[str] = mapped_column(Text, nullable=False)
 
 
@@ -181,7 +204,7 @@ class Alert(Base):
     listing_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("listings.id"), nullable=False
     )
-    tier: Mapped[str] = mapped_column(String, nullable=False)
+    tier: Mapped[str] = mapped_column(ALERT_TIER, nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(

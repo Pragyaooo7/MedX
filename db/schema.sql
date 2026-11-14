@@ -8,7 +8,7 @@
 --     and biases the model toward optimism.
 --   * Money is NUMERIC(10,2), never float.
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- UUIDs come from the built-in gen_random_uuid() (PostgreSQL 13+); no extension.
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;   -- fuzzy drug-name search
 CREATE EXTENSION IF NOT EXISTS citext;    -- case-insensitive email
@@ -20,7 +20,7 @@ CREATE EXTENSION IF NOT EXISTS citext;    -- case-insensitive email
 CREATE TYPE user_role AS ENUM ('buyer', 'seller', 'admin');
 
 CREATE TABLE users (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email           CITEXT UNIQUE NOT NULL,
     phone           TEXT UNIQUE,
     password_hash   TEXT NOT NULL,          -- argon2id
@@ -37,7 +37,7 @@ CREATE TYPE seller_status AS ENUM ('pending', 'verified', 'suspended');
 -- A seller cannot list until license_number is verified. This is a legal
 -- requirement (Form 20/21 retail/wholesale drug licence), not a trust feature.
 CREATE TABLE sellers (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id             UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE RESTRICT,
     business_name       TEXT NOT NULL,
     license_number      TEXT NOT NULL,
@@ -73,7 +73,7 @@ CREATE TYPE drug_form AS ENUM (
 );
 
 CREATE TABLE drugs (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     brand_name          TEXT NOT NULL,
     composition         TEXT NOT NULL,      -- "Paracetamol 500mg + Caffeine 30mg"
     -- Normalized join key: lowercased, sorted, whitespace-stripped composition.
@@ -114,7 +114,7 @@ CREATE INDEX idx_drug_embeddings_hnsw ON drug_embeddings
 CREATE TYPE listing_status AS ENUM ('active', 'sold_out', 'expired', 'withdrawn', 'recalled');
 
 CREATE TABLE listings (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_id           UUID NOT NULL REFERENCES sellers(id) ON DELETE RESTRICT,
     drug_id             UUID NOT NULL REFERENCES drugs(id) ON DELETE RESTRICT,
     batch_number        TEXT NOT NULL,
@@ -179,7 +179,7 @@ CREATE INDEX idx_price_history_listing ON price_history(listing_id, effective_fr
 CREATE TYPE prescription_status AS ENUM ('pending', 'approved', 'rejected', 'expired');
 
 CREATE TABLE prescriptions (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     file_key        TEXT NOT NULL,          -- object-store key, never a public URL
     doctor_name     TEXT,
@@ -199,7 +199,7 @@ CREATE TYPE order_status AS ENUM (
 );
 
 CREATE TABLE orders (
-    id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     buyer_id            UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     status              order_status NOT NULL DEFAULT 'pending_payment',
     subtotal            NUMERIC(10,2) NOT NULL CHECK (subtotal >= 0),
@@ -213,7 +213,7 @@ CREATE TABLE orders (
 CREATE INDEX idx_orders_buyer ON orders(buyer_id, placed_at DESC);
 
 CREATE TABLE order_items (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id        UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     listing_id      UUID NOT NULL REFERENCES listings(id) ON DELETE RESTRICT,
     quantity        INTEGER NOT NULL CHECK (quantity > 0),
@@ -277,7 +277,7 @@ CREATE INDEX idx_risk_scores_recent ON lot_risk_scores(scored_at DESC);
 CREATE TYPE alert_tier AS ENUM ('watch', 'warning', 'critical');
 
 CREATE TABLE alerts (
-    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     seller_id       UUID NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
     listing_id      UUID NOT NULL REFERENCES listings(id) ON DELETE CASCADE,
     tier            alert_tier NOT NULL,
