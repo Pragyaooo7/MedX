@@ -17,6 +17,7 @@ RUN pip install -r requirements.txt
 COPY api/ ./api/
 COPY ai/ ./ai/
 COPY workers/ ./workers/
+COPY db/ ./db/
 
 # Never run as root.
 RUN useradd --create-home --uid 10001 medx && chown -R medx:medx /app

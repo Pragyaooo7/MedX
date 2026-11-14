@@ -6,7 +6,7 @@ from sqlalchemy import text
 
 from .config import get_settings
 from .db import engine
-from .routers import forecast
+from .routers import auth, forecast, listings
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 settings = get_settings()
@@ -25,7 +25,10 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+app.include_router(auth.router)
+app.include_router(auth.admin)
 app.include_router(forecast.router)
+app.include_router(listings.router)
 
 
 @app.get("/health")

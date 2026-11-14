@@ -49,6 +49,26 @@ curl localhost:8000/health          # {"status":"ok","database":true}
 open http://localhost:8000/docs     # OpenAPI
 ```
 
+### Sample data
+
+```bash
+# Admin, a verified pharmacy, 150 days of sales, a trained model, and scores.
+docker compose run --rm -v "$PWD/models:/app/models" api python -m db.seed_dev
+```
+
+Sign in as `seller@medx.local` / `seller-pass-123` (admin: `admin@medx.local` /
+`admin-pass-123`). New sellers who register start unverified; an admin verifies
+them with `POST /admin/sellers/{id}/verify` after checking the drug licence.
+
+### Seller console (web/)
+
+```bash
+cd web && npm install && npm run dev   # http://localhost:3000
+```
+
+With `NEXT_PUBLIC_API_URL` unset it runs on built-in demo data, so no backend is
+needed. To use the API, copy `web/.env.local.example` to `web/.env.local` and set it.
+
 `db/schema.sql` runs automatically on first boot. To reapply after editing it:
 `docker compose down -v && docker compose up -d`.
 
@@ -88,7 +108,16 @@ offline number and a useless model.
 
 ```bash
 pip install -r api/requirements.txt pytest
-pytest                 # 86 tests
+pytest                 # 89 tests; 3 need a database (below)
+```
+
+`test_db_integration.py` runs against a real Postgres. It covers the demand rollup
+and the seller flow end to end: sign-up, verification, catalog, listing,
+repricing, scoring. It is skipped unless `TEST_DATABASE_URL` points at a server
+where it may create a throwaway database:
+
+```bash
+TEST_DATABASE_URL=postgresql+psycopg://medx:medx_dev@localhost:5432/postgres pytest
 ```
 
 `test_train_integration.py` trains real LightGBM models on synthetic data with a
@@ -136,10 +165,10 @@ verified. Schedule H/H1/X items require a verified prescription at checkout.
 ## Status
 
 Built: schema, forecasting models, alerting, nightly pipeline, forecast API,
-Docker infra.
+seller sign-up with licence verification, drug catalog, adding lots and
+repricing, alerts, seller console (`web/`), dev seed, Docker infra.
 
-Not built: `web/` frontend, auth/listing/order routers beyond the forecast
-surface, payments, generic-substitute search (schema support is in place),
+Not built: licence document upload, orders and checkout, buyer UI, payments, generic-substitute search (schema support is in place),
 symptom checker (deliberately deferred — high liability, needs medical review).
 
 Build order and rationale in `docs/ARCHITECTURE.md`.

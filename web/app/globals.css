@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Light and dark are each chosen, not an automatic inversion. Status colors are
+   the fixed status palette and always ship with an icon and a label. */
+:root {
+  color-scheme: light;
+  --page: #f4f4f1;
+  --surface: #fcfcfb;
+  --sunken: #efeee9;
+  --line: rgba(11, 11, 11, 0.1);
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --ink3: #7c7b76;
+  --accent: #0f7a5a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2f2ec;
+  --series: #2a78d6;
+  --series-soft: #cfe1f7;
+  --good: #0ca30c;
+  --watch: #fab219;
+  --warn: #ec835a;
+  --crit: #d03b3b;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #121211;
+    --surface: #1a1a19;
+    --sunken: #222220;
+    --line: rgba(255, 255, 255, 0.1);
+    --ink: #f0efec;
+    --ink2: #c3c2b7;
+    --ink3: #8f8e88;
+    --accent: #2fb487;
+    --accent-ink: #06150f;
+    --accent-soft: #15302a;
+    --series: #3987e5;
+    --series-soft: #1d3554;
+    --grid: #2c2c2a;
+    --axis: #383835;
+  }
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
